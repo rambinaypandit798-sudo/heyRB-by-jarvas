@@ -73,18 +73,36 @@ function ChatScreen() {
       setThinking(true);
       setReplyError(null);
       try {
-        const { text, memorySaved, failover, intentAction, intentUrl, intentFallback, mediaCommand } =
-          await streamReply({
-            agent,
-            model,
-            history,
-            onDelta: setStreaming,
-          });
+        const {
+          text,
+          memorySaved,
+          failover,
+          intentAction,
+          intentMode,
+          intentUrl,
+          intentFallback,
+          mediaCommand,
+        } = await streamReply({
+          agent,
+          model,
+          history,
+          onDelta: setStreaming,
+        });
         if (failover) {
           toast.info("Auto-Failover Active: Answered via Google Gemini (OpenRouter cooldown)");
         }
         if (intentAction) {
-          toast.success("App Intent launched directly via Android");
+          if (intentMode === "web") {
+            const targetUrl = intentFallback || intentUrl;
+            if (targetUrl) {
+              toast.success("Opening in browser tab");
+              try {
+                window.open(targetUrl, "_blank");
+              } catch {}
+            }
+          } else {
+            toast.success("App launched directly on Android");
+          }
         }
         if (mediaCommand) {
           executeClientMediaCommand(mediaCommand);

@@ -23,7 +23,10 @@ export const Route = createFileRoute("/api/intent")({
             });
           }
 
-          const result = await launchAndroidIntent(targetIntent);
+          const clientPlatform = (request.headers.get("x-client-platform") ||
+            (body as any).clientPlatform) as "native" | "web" | undefined;
+
+          const result = await launchAndroidIntent(targetIntent, { clientPlatform });
           return new Response(
             JSON.stringify({
               intent: targetIntent,

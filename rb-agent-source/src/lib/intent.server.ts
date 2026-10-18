@@ -168,23 +168,36 @@ export function parseIntentFromQuery(rawText: string): IntentAction | null {
 }
 
 /**
- * Execute native Android intent with strict package and URI precedence.
- * Directly launches the native Android app without opening web browsers or triggering unintended actions.
+ * Execute intent with environment awareness:
+ * - If clientPlatform is "native", dispatches direct Android package/URI intent (am start).
+ * - If clientPlatform is "web", returns webUrl for immediate client-side redirection without terminal clutter.
  */
 export async function launchAndroidIntent(
-  intent: IntentAction
-): Promise<{ success: boolean; method: string; detail?: string }> {
+  intent: IntentAction,
+  options?: { clientPlatform?: "native" | "web" }
+): Promise<{ success: boolean; method: string; mode: "native" | "web"; webUrl?: string; nativeUrl?: string }> {
+  const isWebMode = options?.clientPlatform === "web";
+
+  // In Web Mode, do not trigger terminal Android app launch; prepare direct web URL
+  if (isWebMode) {
+    return {
+      success: true,
+      method: "web-browser",
+      mode: "web",
+      webUrl: intent.fallbackUrl || intent.url,
+    };
+  }
+
+  // In Native/APK Mode, execute direct Android Intent via am start
   const candidateCommands: string[] = [];
 
   // Priority 1: Native package launcher or specific intent action with package constraint
   if (intent.package) {
     if (intent.query && intent.url) {
-      // Direct view intent scoped to package (e.g. YouTube search in native app)
       candidateCommands.push(
         `am start -a android.intent.action.VIEW -d "${intent.url}" -p ${intent.package} 2>/dev/null`
       );
     } else {
-      // Pure app launcher (e.g. YouTube खोलो -> launches native app directly)
       candidateCommands.push(
         `am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p ${intent.package} 2>/dev/null`
       );
@@ -201,22 +214,27 @@ export async function launchAndroidIntent(
     candidateCommands.push(`am start -a android.intent.action.VIEW -d "${intent.url}" 2>/dev/null`);
   }
 
-  // Priority 4: Termux open URL fallback (only if native am commands fail or on non-package intents)
-  if (intent.fallbackUrl) {
-    candidateCommands.push(`termux-open-url "${intent.fallbackUrl}" 2>/dev/null`);
-    candidateCommands.push(`xdg-open "${intent.fallbackUrl}" 2>/dev/null`);
-  }
-
   for (const cmd of candidateCommands) {
     try {
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 3500 });
+      const { stderr } = await execAsync(cmd, { timeout: 3500 });
       if (!stderr || !stderr.includes("Error: Activity not started")) {
-        return { success: true, method: cmd.split(" ")[0] };
+        return {
+          success: true,
+          method: cmd.split(" ")[0],
+          mode: "native",
+          nativeUrl: intent.url,
+        };
       }
     } catch {
       // Try next candidate
     }
   }
 
-  return { success: false, method: "fallback", detail: intent.fallbackUrl || intent.url };
+  // Fallback if native am commands fail
+  return {
+    success: true,
+    method: "web-fallback",
+    mode: "web",
+    webUrl: intent.fallbackUrl || intent.url,
+  };
 }

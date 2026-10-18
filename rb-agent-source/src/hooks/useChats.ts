@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { supabase } from "@/integrations/supabase/client";
 import { chatTitleFrom } from "@/lib/format";
+import { detectAppEnvironment } from "@/lib/environment";
 
 export type Chat = {
   id: string;
@@ -208,7 +209,11 @@ export async function streamReply(opts: {
 
   const res = await fetch("/api/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "X-Client-Platform": detectAppEnvironment(),
+    },
     body: JSON.stringify({ agent: opts.agent, model: opts.model, messages: opts.history }),
   });
 
@@ -266,6 +271,7 @@ export async function streamReply(opts: {
     model: res.headers.get("X-Active-Model") || "",
     failover: res.headers.get("X-Failover-Active") === "1",
     intentAction: res.headers.get("X-Intent-Action") === "1",
+    intentMode: (res.headers.get("X-Intent-Mode") || "native") as "native" | "web",
     intentUrl: res.headers.get("X-Intent-Url") || null,
     intentFallback: res.headers.get("X-Intent-Fallback") || null,
     mediaCommand: res.headers.get("X-Media-Command") || null,

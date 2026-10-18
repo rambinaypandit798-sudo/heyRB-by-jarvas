@@ -132,26 +132,43 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         // 1. Android Intent & Deep-Link Direct Action
+        const clientPlatform = (request.headers.get("x-client-platform") || "auto") as "native" | "web" | "auto";
         const intent = parseIntentFromQuery(lastUser);
         if (intent) {
-          const launchResult = await launchAndroidIntent(intent);
-          const reply = intent.query
-            ? `▶ Launching ${intent.appName} to play "${intent.query}"...\n\n` +
-              `• Action: ${intent.actionText}\n` +
-              `• Target URI: ${intent.url}\n` +
-              `• App Intent: Dispatched directly to ${intent.appName} (${launchResult.method})\n\n` +
-              `[▶ Open in ${intent.appName}](${intent.url})` +
-              (intent.fallbackUrl ? ` · [Web Player](${intent.fallbackUrl})` : "")
-            : `▶ Launching ${intent.appName} directly via Android...\n\n` +
-              `• Action: ${intent.actionText}\n` +
-              `• Target: ${intent.package || intent.action || intent.appName}\n` +
-              `• Status: App launched directly on device (${launchResult.method})`;
+          const launchResult = await launchAndroidIntent(intent, {
+            clientPlatform: clientPlatform === "auto" ? undefined : clientPlatform,
+          });
+
+          const reply = launchResult.mode === "web"
+            ? (intent.query
+                ? `▶ Opening ${intent.appName} to play "${intent.query}"...\n\n` +
+                  `• Action: ${intent.actionText}\n` +
+                  `• Web Destination: ${intent.fallbackUrl}\n` +
+                  `• Mode: Web Browser Redirect\n\n` +
+                  `[▶ Open Web Player in New Tab](${intent.fallbackUrl})`
+                : `▶ Opening ${intent.appName} in new tab...\n\n` +
+                  `• Action: ${intent.actionText}\n` +
+                  `• Web Destination: ${intent.fallbackUrl || intent.url}\n` +
+                  `• Mode: Web Browser Redirect\n\n` +
+                  `[▶ Open in New Tab](${intent.fallbackUrl || intent.url})`)
+            : (intent.query
+                ? `▶ Launching ${intent.appName} to play "${intent.query}"...\n\n` +
+                  `• Action: ${intent.actionText}\n` +
+                  `• Target URI: ${intent.url}\n` +
+                  `• App Intent: Dispatched directly to native ${intent.appName} (${launchResult.method})\n\n` +
+                  `[▶ Open in ${intent.appName}](${intent.url})` +
+                  (intent.fallbackUrl ? ` · [Web Player](${intent.fallbackUrl})` : "")
+                : `▶ Launching ${intent.appName} directly via Android...\n\n` +
+                  `• Action: ${intent.actionText}\n` +
+                  `• Target: ${intent.package || intent.action || intent.appName}\n` +
+                  `• Status: App launched directly on device (${launchResult.method})`);
 
           return new Response(reply, {
             headers: {
               "Content-Type": "text/plain; charset=utf-8",
               "Cache-Control": "no-cache",
               "X-Intent-Action": "1",
+              "X-Intent-Mode": launchResult.mode,
               "X-Intent-Url": intent.url,
               "X-Intent-Fallback": intent.fallbackUrl || "",
               "X-Active-Provider": "local-intent",
