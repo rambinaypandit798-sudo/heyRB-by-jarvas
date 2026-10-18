@@ -64,13 +64,17 @@ function Actions({ id, text, voiceId }: { id: string; text: string; voiceId: str
       >
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
       </button>
-      {isActive && speech.paused ? (
-        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-          paused ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
+      {isPlaying ? (
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary">
+          <span className="size-1.5 rounded-full bg-primary animate-pulse" /> Reading
         </span>
-      ) : hasBookmark && !isActive ? (
+      ) : isActive && speech.paused ? (
+        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          Paused ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
+        </span>
+      ) : hasBookmark ? (
         <span className="text-[11px] text-muted-foreground">
-          bookmarked ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
+          Resume ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
         </span>
       ) : null}
     </div>
@@ -149,14 +153,5 @@ export function MessageList({
 }
 
 export function LiveSubtitles() {
-  const speech = useSpeechState();
-  if (!speech.activeId || !speech.spoken.trim()) return null;
-  const tail = speech.spoken.slice(-140);
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-36 z-40 flex justify-center px-6">
-      <p className="glass-strong max-w-xl rounded-2xl px-4 py-2 text-center text-sm leading-6 text-foreground">
-        {tail}
-      </p>
-    </div>
-  );
+  return null;
 }

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { AppShell } from "@/components/AppShell";
 import { InputBar } from "@/components/InputBar";
-import { LiveSubtitles, MessageList } from "@/components/MessageList";
+import { MessageList } from "@/components/MessageList";
 import { QuotaNoticeCard, type QuotaErrorInfo } from "@/components/QuotaNoticeCard";
 import { useProfile, useSettings, useUpdateSettings } from "@/hooks/useAccount";
 import { addMessage, streamReply, useMessages, ChatApiError } from "@/hooks/useChats";
@@ -202,7 +202,6 @@ function ChatScreen() {
           </div>
         </div>
       </div>
-      {settings?.live_subtitles !== false ? <LiveSubtitles /> : null}
     </AppShell>
   );
 }
