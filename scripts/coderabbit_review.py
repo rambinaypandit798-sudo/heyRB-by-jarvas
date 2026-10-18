@@ -122,6 +122,7 @@ class CodeRabbitReviewer:
             if part in IGNORE_DIRS:
                 return True
         if path.suffix.lower() in IGNORE_EXTENSIONS:
+            return True
         return False
 
     def check_python_syntax(self, file_path: Path) -> Optional[str]:
