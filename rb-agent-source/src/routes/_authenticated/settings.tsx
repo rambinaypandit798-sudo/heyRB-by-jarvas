@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Activity,
   Check,
   Github,
   LogOut,
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
 import { MemoryVault } from "@/components/MemoryVault";
+import { UsageDashboard } from "@/components/UsageDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -130,6 +132,14 @@ function SettingsScreen() {
               Save
             </Button>
           </div>
+        </Section>
+
+        <Section
+          icon={Activity}
+          title="AI Usage & Smart Failover"
+          hint="Real-time request metrics, token analytics, and failover status between Google Gemini and OpenRouter."
+        >
+          <UsageDashboard />
         </Section>
 
         <Section

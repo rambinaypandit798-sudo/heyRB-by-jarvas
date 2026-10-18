@@ -259,5 +259,11 @@ export async function streamReply(opts: {
     full += decoder.decode(value, { stream: true });
     opts.onDelta(full);
   }
-  return { text: full, memorySaved: res.headers.get("X-Memory-Saved") === "1" };
+  return {
+    text: full,
+    memorySaved: res.headers.get("X-Memory-Saved") === "1",
+    provider: (res.headers.get("X-Active-Provider") || "gemini") as "gemini" | "openrouter",
+    model: res.headers.get("X-Active-Model") || "",
+    failover: res.headers.get("X-Failover-Active") === "1",
+  };
 }

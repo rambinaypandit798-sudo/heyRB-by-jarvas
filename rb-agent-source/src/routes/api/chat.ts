@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import { agentById } from "@/lib/agents";
 import { hasMemoryTrigger } from "@/lib/memory-triggers";
-import { chatCompletion, completeOnce, embed, systemPrompt } from "@/lib/ai.server";
+import { chatCompletionWithFailover, completeOnce, embed, systemPrompt } from "@/lib/ai.server";
 import { usableModel } from "@/lib/models";
 import {
   isLiveInformationQuery,
@@ -180,10 +180,18 @@ function storeCachedResponse(prompt: string, response: string, searchResults?: S
 }
 
         let upstream: Response;
+        let activeProvider: "gemini" | "openrouter" = "gemini";
+        let activeModel: string = model;
+        let failoverActive = false;
+
         try {
-          upstream = await chatCompletion(model, messages, { enableGoogleSearch: true });
+          const failoverResult = await chatCompletionWithFailover(model, messages, { enableGoogleSearch: true });
+          upstream = failoverResult.response;
+          activeProvider = failoverResult.provider;
+          activeModel = failoverResult.model;
+          failoverActive = failoverResult.failoverTriggered;
         } catch (error) {
-          console.error("Gemini API service connection failed", error);
+          console.error("AI service connection failed", error);
           // Check cached response before returning generic 503
           const cached = getCachedResponse(lastUser);
           if (cached?.response) {
@@ -383,6 +391,9 @@ function storeCachedResponse(prompt: string, response: string, searchResults?: S
             "Cache-Control": "no-cache",
             "X-Memory-Saved": savedMemory ? "1" : "0",
             "X-Search-Grounding": searchResults.length > 0 ? "1" : "0",
+            "X-Active-Provider": activeProvider,
+            "X-Active-Model": activeModel,
+            "X-Failover-Active": failoverActive ? "1" : "0",
           },
         });
       },

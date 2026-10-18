@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { BrandMark } from "@/components/BrandMark";
+import { UsageBadge } from "@/components/UsageDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -174,6 +175,11 @@ function DrawerBody({ onNavigate }: { onNavigate: () => void }) {
         ))}
       </div>
 
+      <div className="border-t border-border/60 px-4 py-2.5 flex items-center justify-between text-xs text-muted-foreground">
+        <span className="text-[11px] font-medium">Provider Status:</span>
+        <UsageBadge />
+      </div>
+
       <div className="border-t border-border p-3">
         <Button asChild className="h-auto w-full rounded-lg p-0">
         <Link
@@ -221,11 +227,14 @@ export function AppShell({ children, title }: { children: ReactNode; title?: str
           </p>
           <p className="text-[11px] text-muted-foreground">Personal AI Assistant</p>
         </div>
-        {settings?.wake_word_enabled ? (
-          <span className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold text-accent-foreground">
-            <Waves className="size-3" /> Hey RB
-          </span>
-        ) : null}
+        <div className="flex items-center gap-2 shrink-0">
+          <UsageBadge />
+          {settings?.wake_word_enabled ? (
+            <span className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold text-accent-foreground">
+              <Waves className="size-3" /> Hey RB
+            </span>
+          ) : null}
+        </div>
       </header>
 
       {awake ? (

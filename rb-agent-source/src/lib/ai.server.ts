@@ -1,4 +1,20 @@
+import { recordUsageEvent, markGeminiCooldown } from "./usage.server";
+
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+
+export function openrouterKey(): string | null {
+  const key = process.env["OPENROUTER_API_KEY"] || process.env["VITE_OPENROUTER_API_KEY"];
+  if (!key) return null;
+  return key.trim().replace(/^["']|["']$/g, "");
+}
+
+export const OPENROUTER_FREE_MODELS = [
+  "openrouter/free",
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-3.5-lightning:free",
+  "liquid/lfm-2.5-2.6b:free",
+];
 
 // Cooldown tracking for rotated API keys
 const keyCooldowns = new Map<string, number>();
@@ -248,6 +264,134 @@ export async function completeOnce(model: string, messages: { role: string; cont
     }
   }
   return null;
+}
+
+export async function openrouterCompletion(
+  model: string,
+  messages: { role: string; content: string }[],
+  options?: { stream?: boolean }
+): Promise<Response> {
+  const key = openrouterKey();
+  if (!key) throw new Error("OpenRouter API key is not configured.");
+
+  const formattedMessages = messages
+    .filter((m) => m.content?.trim())
+    .map((m) => ({
+      role: m.role === "assistant" || m.role === "model" ? "assistant" : m.role === "system" ? "system" : "user",
+      content: m.content,
+    }));
+
+  const targetModel = model.startsWith("openrouter/") || model.includes("/") ? model : "openrouter/free";
+
+  return fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "HTTP-Referer": "http://localhost:8080",
+      "X-Title": "RB Agent",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: targetModel,
+      messages: formattedMessages,
+      stream: options?.stream !== false,
+    }),
+  });
+}
+
+export async function chatCompletionWithFailover(
+  model: string,
+  messages: { role: string; content: string }[],
+  options?: { enableGoogleSearch?: boolean }
+): Promise<{
+  response: Response;
+  provider: "gemini" | "openrouter";
+  model: string;
+  failoverTriggered: boolean;
+}> {
+  const orKey = openrouterKey();
+
+  // If user selected an openrouter-specific model
+  if (model.startsWith("openrouter/") || (model.includes("/") && !model.startsWith("google/"))) {
+    if (orKey) {
+      try {
+        const orRes = await openrouterCompletion(model, messages, { stream: true });
+        if (orRes.ok) {
+          recordUsageEvent({ provider: "openrouter", model, failover: false });
+          return { response: orRes, provider: "openrouter", model, failoverTriggered: false };
+        }
+      } catch (err) {
+        console.warn("Direct OpenRouter call failed, attempting Gemini...", err);
+      }
+    }
+  }
+
+  // 1. Primary: Google Gemini with backoff & model cascade
+  try {
+    const geminiRes = await chatCompletion(model, messages, options);
+    if (geminiRes.ok) {
+      recordUsageEvent({ provider: "gemini", model: normalizeModelName(model), failover: false });
+      return {
+        response: geminiRes,
+        provider: "gemini",
+        model: normalizeModelName(model),
+        failoverTriggered: false,
+      };
+    }
+
+    // Rate limit (429) or transient server outage (500/503)
+    if (geminiRes.status === 429 || geminiRes.status >= 500) {
+      markGeminiCooldown(30);
+
+      if (orKey) {
+        console.warn(`[Smart Failover] Gemini returned status ${geminiRes.status}. Seamlessly routing to OpenRouter...`);
+        for (const freeModel of OPENROUTER_FREE_MODELS) {
+          try {
+            const orRes = await openrouterCompletion(freeModel, messages, { stream: true });
+            if (orRes.ok) {
+              console.log(`[Smart Failover] Successfully switched to OpenRouter model: ${freeModel}`);
+              recordUsageEvent({ provider: "openrouter", model: freeModel, failover: true });
+              return {
+                response: orRes,
+                provider: "openrouter",
+                model: freeModel,
+                failoverTriggered: true,
+              };
+            }
+          } catch (failoverErr) {
+            console.error(`[Smart Failover] OpenRouter model ${freeModel} error:`, failoverErr);
+          }
+        }
+      }
+    }
+
+    return {
+      response: geminiRes,
+      provider: "gemini",
+      model: normalizeModelName(model),
+      failoverTriggered: false,
+    };
+  } catch (geminiError) {
+    if (orKey) {
+      markGeminiCooldown(30);
+      console.warn("[Smart Failover] Gemini threw network exception. Routing to OpenRouter...", geminiError);
+      for (const freeModel of OPENROUTER_FREE_MODELS) {
+        try {
+          const orRes = await openrouterCompletion(freeModel, messages, { stream: true });
+          if (orRes.ok) {
+            recordUsageEvent({ provider: "openrouter", model: freeModel, failover: true });
+            return {
+              response: orRes,
+              provider: "openrouter",
+              model: freeModel,
+              failoverTriggered: true,
+            };
+          }
+        } catch {}
+      }
+    }
+    throw geminiError;
+  }
 }
 
 export const FORMAT_RULES = `Output formatting rules that you must never break:

@@ -72,12 +72,15 @@ function ChatScreen() {
       setThinking(true);
       setReplyError(null);
       try {
-        const { text, memorySaved } = await streamReply({
+        const { text, memorySaved, failover } = await streamReply({
           agent,
           model,
           history,
           onDelta: setStreaming,
         });
+        if (failover) {
+          toast.info("Auto-Failover Active: Answered via OpenRouter");
+        }
         const finalText = cleanText(text);
         if (finalText) {
           const saved = await addMessage(chatId, "assistant", finalText);
