@@ -12,6 +12,8 @@ import {
   formatSourceCitations,
   SearchResult,
 } from "@/lib/search.server";
+import { parseIntentFromQuery, launchAndroidIntent } from "@/lib/intent.server";
+import { controlTermuxMediaPlayer } from "@/lib/media.server";
 
 type Incoming = {
   agent?: string;
@@ -127,6 +129,47 @@ export const Route = createFileRoute("/api/chat")({
           } catch (searchErr) {
             console.error("Live web search fetch failed:", searchErr);
           }
+        }
+
+        // 1. Android Intent & Deep-Link Direct Action
+        const intent = parseIntentFromQuery(lastUser);
+        if (intent) {
+          const launchResult = await launchAndroidIntent(intent);
+          const reply =
+            `▶ Launching ${intent.type === "youtube" ? "YouTube" : intent.type === "spotify" ? "Spotify" : "App"} to play "${intent.query || intent.actionText}"...\n\n` +
+            `• Action: ${intent.actionText}\n` +
+            `• Target URI: ${intent.url}\n` +
+            `• Intent Status: Dispatched via Android (${launchResult.method})\n\n` +
+            `[▶ Open in ${intent.type === "youtube" ? "YouTube" : "App"}](${intent.url}) · [Web Player](${intent.fallbackUrl})`;
+
+          return new Response(reply, {
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-cache",
+              "X-Intent-Action": "1",
+              "X-Intent-Url": intent.url,
+              "X-Intent-Fallback": intent.fallbackUrl,
+              "X-Active-Provider": "local-intent",
+              "X-Active-Model": "android-intent",
+            },
+          });
+        }
+
+        // 2. Direct Media Control Commands
+        const mediaCmdMatch = lastUser.trim().match(/^(?:please\s+)?(pause|resume|stop|play)\s+(?:the\s+)?(?:music|song|player|media|track)$/i);
+        if (mediaCmdMatch) {
+          const cmd = mediaCmdMatch[1].toLowerCase() as "play" | "pause" | "stop" | "resume";
+          await controlTermuxMediaPlayer(cmd);
+          const reply = `Media playback ${cmd === "pause" ? "paused" : cmd === "resume" || cmd === "play" ? "resumed" : "stopped"} successfully.`;
+          return new Response(reply, {
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": "no-cache",
+              "X-Media-Command": cmd,
+              "X-Active-Provider": "media-engine",
+              "X-Active-Model": "media-control",
+            },
+          });
         }
 
         const messages = [

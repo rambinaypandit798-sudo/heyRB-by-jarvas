@@ -40,8 +40,11 @@ function Actions({ id, text, voiceId }: { id: string; text: string; voiceId: str
     }
   };
 
+  const bookmark = isActive ? speech.charOffset : speechEngine.getBookmark(id);
+  const hasBookmark = bookmark > 0 && bookmark < text.length;
+
   return (
-    <div className="mt-1.5 flex items-center gap-1">
+    <div className="mt-1.5 flex items-center gap-1.5">
       <button
         type="button"
         onClick={copy}
@@ -53,7 +56,7 @@ function Actions({ id, text, voiceId }: { id: string; text: string; voiceId: str
       <button
         type="button"
         onClick={() => speechEngine.toggle(id, text, voiceId)}
-        aria-label={isPlaying ? "Pause reading" : "Read this reply aloud"}
+        aria-label={isPlaying ? "Pause reading" : hasBookmark ? "Resume reading" : "Read this reply aloud"}
         className={cn(
           "grid size-8 place-items-center rounded-full transition-colors hover:bg-accent hover:text-accent-foreground",
           isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
@@ -62,7 +65,13 @@ function Actions({ id, text, voiceId }: { id: string; text: string; voiceId: str
         {isPlaying ? <Pause className="size-4" /> : <Play className="size-4" />}
       </button>
       {isActive && speech.paused ? (
-        <span className="text-[11px] font-medium text-muted-foreground">bookmarked</span>
+        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+          paused ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
+        </span>
+      ) : hasBookmark && !isActive ? (
+        <span className="text-[11px] text-muted-foreground">
+          bookmarked ({Math.round((bookmark / Math.max(1, text.length)) * 100)}%)
+        </span>
       ) : null}
     </div>
   );

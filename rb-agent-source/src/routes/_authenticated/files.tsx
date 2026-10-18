@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { FileText, Image as ImageIcon, Trash2, Upload } from "lucide-react";
+import { FileText, Image as ImageIcon, Music, Trash2, Upload, Video } from "lucide-react";
 
 import { AppShell } from "@/components/AppShell";
+import { MediaPlayer } from "@/components/MediaPlayer";
 
 export const Route = createFileRoute("/_authenticated/files")({
   head: () => ({
@@ -68,15 +69,15 @@ function FilePreview() {
           <span className="grid size-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
             <Upload className="size-5" />
           </span>
-          <span className="font-display text-base font-semibold">Upload a document</span>
-          <span className="text-xs text-muted-foreground">PDF, images, text, markdown, CSV and JSON</span>
+          <span className="font-display text-base font-semibold">Upload a document or media</span>
+          <span className="text-xs text-muted-foreground">PDF, audio, video, images, text, markdown, CSV and JSON</span>
         </button>
         <input
           ref={inputRef}
           type="file"
           multiple
           hidden
-          accept=".pdf,.txt,.md,.csv,.json,image/*"
+          accept=".pdf,.txt,.md,.csv,.json,image/*,audio/*,video/*"
           onChange={(e) => add(e.target.files)}
         />
 
@@ -97,6 +98,10 @@ function FilePreview() {
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-accent-foreground">
                     {item.type.startsWith("image/") ? (
                       <ImageIcon className="size-4" />
+                    ) : item.type.startsWith("audio/") ? (
+                      <Music className="size-4 text-primary" />
+                    ) : item.type.startsWith("video/") ? (
+                      <Video className="size-4 text-primary" />
                     ) : (
                       <FileText className="size-4" />
                     )}
@@ -130,6 +135,14 @@ function FilePreview() {
             <p className="border-b border-border px-4 py-3 text-sm font-semibold">{active.name}</p>
             {active.type.startsWith("image/") ? (
               <img src={active.url} alt={active.name} className="max-h-[60vh] w-full object-contain" />
+            ) : active.type.startsWith("audio/") ? (
+              <div className="p-4">
+                <MediaPlayer id={active.id} url={active.url} title={active.name} type="audio" autoPlay />
+              </div>
+            ) : active.type.startsWith("video/") ? (
+              <div className="p-4">
+                <MediaPlayer id={active.id} url={active.url} title={active.name} type="video" autoPlay />
+              </div>
             ) : active.type === "application/pdf" ? (
               <iframe src={active.url} title={active.name} className="h-[70vh] w-full" />
             ) : active.text !== undefined ? (

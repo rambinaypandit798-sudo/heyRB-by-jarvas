@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ModelSheet } from "@/components/ModelSheet";
 import { modelLabel } from "@/lib/models";
-import { createRecognition, readTranscript } from "@/lib/speech";
+import { createRecognition, readTranscript, speechEngine } from "@/lib/speech";
+import { executeClientMediaCommand } from "@/lib/commands";
 import { cn } from "@/lib/utils";
 
 export function InputBar({
@@ -53,6 +54,13 @@ export function InputBar({
       ? `${value}\n\nAttached files: ${attachments.join(", ")}`
       : value;
     if (!payload.trim() || busy) return;
+
+    // Fast-path client media & speech command execution
+    const wasHandled = executeClientMediaCommand(value.trim());
+    if (wasHandled) {
+      toast.success("Command executed: " + value.trim());
+    }
+
     onSend(payload.trim());
     setText("");
     setAttachments([]);
@@ -64,6 +72,10 @@ export function InputBar({
       recognitionRef.current?.stop();
       setListening(false);
       return;
+    }
+    // Auto-pause speech synthesis to avoid recording own playback
+    if (speechEngine.getState().speaking) {
+      speechEngine.pause();
     }
     const rec = createRecognition("hi-IN");
     if (!rec) {

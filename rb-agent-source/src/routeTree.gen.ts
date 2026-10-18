@@ -19,6 +19,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSkillsRouteImport } from './routes/_authenticated/skills'
 import { Route as AuthenticatedWebRouteImport } from './routes/_authenticated/web'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiIntentRouteImport } from './routes/api/intent'
+import { Route as ApiMediaStateRouteImport } from './routes/api/media-state'
 import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as AuthenticatedCChatIdRouteImport } from './routes/_authenticated/c.$chatId'
 
@@ -71,6 +73,16 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIntentRoute = ApiIntentRouteImport.update({
+  id: '/api/intent',
+  path: '/api/intent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMediaStateRoute = ApiMediaStateRouteImport.update({
+  id: '/api/media-state',
+  path: '/api/media-state',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiUsageRoute = ApiUsageRouteImport.update({
   id: '/api/usage',
   path: '/api/usage',
@@ -92,6 +104,8 @@ export interface FileRoutesByFullPath {
   '/skills': typeof AuthenticatedSkillsRoute
   '/web': typeof AuthenticatedWebRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/intent': typeof ApiIntentRoute
+  '/api/media-state': typeof ApiMediaStateRoute
   '/api/usage': typeof ApiUsageRoute
   '/c/$chatId': typeof AuthenticatedCChatIdRoute
 }
@@ -104,6 +118,8 @@ export interface FileRoutesByTo {
   '/skills': typeof AuthenticatedSkillsRoute
   '/web': typeof AuthenticatedWebRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/intent': typeof ApiIntentRoute
+  '/api/media-state': typeof ApiMediaStateRoute
   '/api/usage': typeof ApiUsageRoute
   '/': typeof AuthenticatedIndexRoute
   '/c/$chatId': typeof AuthenticatedCChatIdRoute
@@ -119,6 +135,8 @@ export interface FileRoutesById {
   '/_authenticated/skills': typeof AuthenticatedSkillsRoute
   '/_authenticated/web': typeof AuthenticatedWebRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/intent': typeof ApiIntentRoute
+  '/api/media-state': typeof ApiMediaStateRoute
   '/api/usage': typeof ApiUsageRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/c/$chatId': typeof AuthenticatedCChatIdRoute
@@ -135,6 +153,8 @@ export interface FileRouteTypes {
     | '/skills'
     | '/web'
     | '/api/chat'
+    | '/api/intent'
+    | '/api/media-state'
     | '/api/usage'
     | '/c/$chatId'
   fileRoutesByTo: FileRoutesByTo
@@ -147,6 +167,8 @@ export interface FileRouteTypes {
     | '/skills'
     | '/web'
     | '/api/chat'
+    | '/api/intent'
+    | '/api/media-state'
     | '/api/usage'
     | '/'
     | '/c/$chatId'
@@ -161,6 +183,8 @@ export interface FileRouteTypes {
     | '/_authenticated/skills'
     | '/_authenticated/web'
     | '/api/chat'
+    | '/api/intent'
+    | '/api/media-state'
     | '/api/usage'
     | '/_authenticated/'
     | '/_authenticated/c/$chatId'
@@ -170,6 +194,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiIntentRoute: typeof ApiIntentRoute
+  ApiMediaStateRoute: typeof ApiMediaStateRoute
   ApiUsageRoute: typeof ApiUsageRoute
 }
 
@@ -245,6 +271,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/intent': {
+      id: '/api/intent'
+      path: '/api/intent'
+      fullPath: '/api/intent'
+      preLoaderRoute: typeof ApiIntentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/media-state': {
+      id: '/api/media-state'
+      path: '/api/media-state'
+      fullPath: '/api/media-state'
+      preLoaderRoute: typeof ApiMediaStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/usage': {
       id: '/api/usage'
       path: '/api/usage'
@@ -291,6 +331,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiIntentRoute: ApiIntentRoute,
+  ApiMediaStateRoute: ApiMediaStateRoute,
   ApiUsageRoute: ApiUsageRoute,
 }
 export const routeTree = rootRouteImport

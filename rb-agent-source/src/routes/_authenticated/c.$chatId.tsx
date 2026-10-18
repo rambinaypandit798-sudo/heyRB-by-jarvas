@@ -17,6 +17,7 @@ import { usableModel } from "@/lib/models";
 import { speechEngine } from "@/lib/speech";
 import { DEFAULT_VOICE } from "@/lib/voices";
 import { Button } from "@/components/ui/button";
+import { executeClientMediaCommand } from "@/lib/commands";
 
 export const Route = createFileRoute("/_authenticated/c/$chatId")({
   validateSearch: z.object({ live: z.number().optional() }),
@@ -65,21 +66,31 @@ function ChatScreen() {
       });
   }, [chatId]);
 
-  useEffect(() => () => speechEngine.stop(), [chatId]);
+  useEffect(() => () => speechEngine.pause(), [chatId]);
 
   const respond = useCallback(
     async (history: { role: "user" | "assistant"; content: string }[]) => {
       setThinking(true);
       setReplyError(null);
       try {
-        const { text, memorySaved, failover } = await streamReply({
-          agent,
-          model,
-          history,
-          onDelta: setStreaming,
-        });
+        const { text, memorySaved, failover, intentAction, intentUrl, intentFallback, mediaCommand } =
+          await streamReply({
+            agent,
+            model,
+            history,
+            onDelta: setStreaming,
+          });
         if (failover) {
           toast.info("Auto-Failover Active: Answered via Google Gemini (OpenRouter cooldown)");
+        }
+        if (intentAction && (intentUrl || intentFallback)) {
+          toast.success("Android Intent dispatched — launching player");
+          try {
+            window.open(intentUrl || intentFallback!, "_blank");
+          } catch {}
+        }
+        if (mediaCommand) {
+          executeClientMediaCommand(mediaCommand);
         }
         const finalText = cleanText(text);
         if (finalText) {

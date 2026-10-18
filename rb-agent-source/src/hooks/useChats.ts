@@ -265,5 +265,9 @@ export async function streamReply(opts: {
     provider: (res.headers.get("X-Active-Provider") || "gemini") as "gemini" | "openrouter",
     model: res.headers.get("X-Active-Model") || "",
     failover: res.headers.get("X-Failover-Active") === "1",
+    intentAction: res.headers.get("X-Intent-Action") === "1",
+    intentUrl: res.headers.get("X-Intent-Url") || null,
+    intentFallback: res.headers.get("X-Intent-Fallback") || null,
+    mediaCommand: res.headers.get("X-Media-Command") || null,
   };
 }

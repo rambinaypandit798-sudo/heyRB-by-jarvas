@@ -1,6 +1,6 @@
 {
   "project": "RB Agent OS — Autonomous Developer Environment",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "overview": "Autonomous task tracking and execution queue for Ralph Loop, GSD-Core, and Antigravity pair programming.",
   "userStories": [
     {
@@ -22,6 +22,55 @@
       "acceptanceCriteria": [
         "Self-healing handler intercepts exceptions without prompting user",
         "Clean API integration bypasses sk_ prefix restrictions and supports direct Gemini AIzaSy... keys"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-3",
+      "title": "TTS Speech Synthesis Pause, Resume & Bookmark Fix",
+      "description": "Fix text-to-speech audio player in chat responses to save exact character/word position when paused/stopped via speech or mic button, resuming seamlessly without resetting.",
+      "acceptanceCriteria": [
+        "SpeechEngine stores exact character/word offset on pause and prevents cancel() from wiping offset to zero",
+        "Resuming continues from the exact word/position where paused",
+        "Mic button in InputBar auto-pauses speech and saves bookmark",
+        "Lovable UI styling remains 100% intact"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-4",
+      "title": "Persistent Media State & Audio/Video Resume Player",
+      "description": "Implement media/audio player component with persistent timestamp state across frontend and backend service.",
+      "acceptanceCriteria": [
+        "Media state saves currentTime, duration, and metadata to localStorage and /api/media-state",
+        "Paused media resumes precisely from currentTime instead of resetting to zero",
+        "Integrate media player into file preview (files.tsx) and chat response cards"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-5",
+      "title": "Android Intent & Custom URI Deep-Link Automation",
+      "description": "Integrate Android Intent and custom URI schemes in agent tools for direct YouTube and media app launch.",
+      "acceptanceCriteria": [
+        "Recognize requests like 'open YouTube and play [song]'",
+        "Execute Android Intent via am start or termux-open-url rather than giving manual text steps",
+        "Provide direct launch fallback action card in the UI"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-6",
+      "title": "Media Control Actions & Command Recognition",
+      "description": "Implement robust command recognition for play, pause, resume, and seek via voice input and chat interface.",
+      "acceptanceCriteria": [
+        "Instant recognition of play/pause/resume/seek commands in speech input and chat messages",
+        "Control active TTS speech and media player playback seamlessly",
+        "Verify build passes and CodeRabbit reports 0 syntax errors and 0 security issues"
       ],
       "passes": true,
       "status": "completed"
