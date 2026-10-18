@@ -83,11 +83,8 @@ function ChatScreen() {
         if (failover) {
           toast.info("Auto-Failover Active: Answered via Google Gemini (OpenRouter cooldown)");
         }
-        if (intentAction && (intentUrl || intentFallback)) {
-          toast.success("Android Intent dispatched — launching player");
-          try {
-            window.open(intentUrl || intentFallback!, "_blank");
-          } catch {}
+        if (intentAction) {
+          toast.success("App Intent launched directly via Android");
         }
         if (mediaCommand) {
           executeClientMediaCommand(mediaCommand);

@@ -135,12 +135,17 @@ export const Route = createFileRoute("/api/chat")({
         const intent = parseIntentFromQuery(lastUser);
         if (intent) {
           const launchResult = await launchAndroidIntent(intent);
-          const reply =
-            `▶ Launching ${intent.type === "youtube" ? "YouTube" : intent.type === "spotify" ? "Spotify" : "App"} to play "${intent.query || intent.actionText}"...\n\n` +
-            `• Action: ${intent.actionText}\n` +
-            `• Target URI: ${intent.url}\n` +
-            `• Intent Status: Dispatched via Android (${launchResult.method})\n\n` +
-            `[▶ Open in ${intent.type === "youtube" ? "YouTube" : "App"}](${intent.url}) · [Web Player](${intent.fallbackUrl})`;
+          const reply = intent.query
+            ? `▶ Launching ${intent.appName} to play "${intent.query}"...\n\n` +
+              `• Action: ${intent.actionText}\n` +
+              `• Target URI: ${intent.url}\n` +
+              `• App Intent: Dispatched directly to ${intent.appName} (${launchResult.method})\n\n` +
+              `[▶ Open in ${intent.appName}](${intent.url})` +
+              (intent.fallbackUrl ? ` · [Web Player](${intent.fallbackUrl})` : "")
+            : `▶ Launching ${intent.appName} directly via Android...\n\n` +
+              `• Action: ${intent.actionText}\n` +
+              `• Target: ${intent.package || intent.action || intent.appName}\n` +
+              `• Status: App launched directly on device (${launchResult.method})`;
 
           return new Response(reply, {
             headers: {
@@ -148,7 +153,7 @@ export const Route = createFileRoute("/api/chat")({
               "Cache-Control": "no-cache",
               "X-Intent-Action": "1",
               "X-Intent-Url": intent.url,
-              "X-Intent-Fallback": intent.fallbackUrl,
+              "X-Intent-Fallback": intent.fallbackUrl || "",
               "X-Active-Provider": "local-intent",
               "X-Active-Model": "android-intent",
             },
