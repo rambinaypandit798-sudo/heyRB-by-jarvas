@@ -21,7 +21,10 @@ export function normalizeModelName(rawModel: string): string {
   return "gemini-3.8-flash";
 }
 
-export function formatGeminiPayload(messages: { role: string; content: string }[]) {
+export function formatGeminiPayload(
+  messages: { role: string; content: string }[],
+  options?: { enableGoogleSearch?: boolean }
+) {
   let systemText = "";
   const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
 
@@ -51,6 +54,7 @@ export function formatGeminiPayload(messages: { role: string; content: string }[
   return {
     ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
     contents,
+    ...(options?.enableGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
   };
 }
 
@@ -77,10 +81,14 @@ export async function embed(text: string): Promise<number[] | null> {
   }
 }
 
-export async function chatCompletion(model: string, messages: { role: string; content: string }[]) {
+export async function chatCompletion(
+  model: string,
+  messages: { role: string; content: string }[],
+  options?: { enableGoogleSearch?: boolean }
+) {
   const targetModel = normalizeModelName(model);
   const key = gatewayKey();
-  const payload = formatGeminiPayload(messages);
+  const payload = formatGeminiPayload(messages, options);
 
   const request = () =>
     fetch(`${GEMINI_BASE}/models/${targetModel}:streamGenerateContent?alt=sse&key=${key}`, {

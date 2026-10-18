@@ -5,6 +5,13 @@ import { agentById } from "@/lib/agents";
 import { hasMemoryTrigger } from "@/lib/memory-triggers";
 import { chatCompletion, completeOnce, embed, systemPrompt } from "@/lib/ai.server";
 import { usableModel } from "@/lib/models";
+import {
+  isLiveInformationQuery,
+  searchLiveWeb,
+  formatSearchGroundingContext,
+  formatSourceCitations,
+  SearchResult,
+} from "@/lib/search.server";
 
 type Incoming = {
   agent?: string;
@@ -106,6 +113,22 @@ export const Route = createFileRoute("/api/chat")({
           }
         }
 
+        // Live Internet Search & Real-Time Grounding
+        let searchGroundingPrompt = "";
+        let searchResults: SearchResult[] = [];
+        const isSearchIntent = isLiveInformationQuery(lastUser) || body.agent === "research" || body.agent === "view";
+
+        if (isSearchIntent) {
+          try {
+            searchResults = await searchLiveWeb(lastUser, 4);
+            if (searchResults.length > 0) {
+              searchGroundingPrompt = formatSearchGroundingContext(searchResults);
+            }
+          } catch (searchErr) {
+            console.error("Live web search fetch failed:", searchErr);
+          }
+        }
+
         const messages = [
           {
             role: "system",
@@ -117,14 +140,15 @@ export const Route = createFileRoute("/api/chat")({
               }) +
               (savedMemory
                 ? `\n\nYou just stored this in the memory vault, confirm it briefly in one line: ${savedMemory}`
-                : ""),
+                : "") +
+              (searchGroundingPrompt ? `\n\n${searchGroundingPrompt}` : ""),
           },
           ...history.map((m) => ({ role: m.role, content: m.content })),
         ];
 
         let upstream: Response;
         try {
-          upstream = await chatCompletion(model, messages);
+          upstream = await chatCompletion(model, messages, { enableGoogleSearch: true });
         } catch (error) {
           console.error("Gemini API service connection failed", error);
           return json({ error: "The AI service is temporarily unavailable. Please retry your message." }, 503);
@@ -145,6 +169,23 @@ export const Route = createFileRoute("/api/chat")({
             await upstream.body?.cancel();
           }
           console.error("Gemini API upstream error", upstream.status, upstreamMessage);
+
+          // Autonomous Self-Healing Fallback: If upstream hits 429 quota or 503, provide verified live search results
+          if (searchResults.length > 0 && (upstream.status === 429 || upstream.status === 503)) {
+            const answer = `Here are the latest live facts retrieved for "${lastUser}":\n\n` +
+              searchResults.map((r) => `• ${r.title}: ${r.snippet}`).join("\n\n") +
+              formatSourceCitations(searchResults);
+
+            return new Response(answer, {
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Cache-Control": "no-cache",
+                "X-Search-Grounding": "1",
+                "X-Live-Search-Fallback": "1",
+              },
+            });
+          }
+
           if (upstream.status === 429)
             return json({ error: upstreamMessage || "Too many requests right now. Try again in a moment." }, 429);
           if (upstream.status === 402)
@@ -161,6 +202,7 @@ export const Route = createFileRoute("/api/chat")({
         const decoder = new TextDecoder();
         const encoder = new TextEncoder();
         let buffer = "";
+        let fullOutputText = "";
 
         const stream = new ReadableStream<Uint8Array>({
           async start(controller) {
@@ -173,7 +215,18 @@ export const Route = createFileRoute("/api/chat")({
             try {
               for (;;) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                  if (
+                    searchResults.length > 0 &&
+                    !fullOutputText.includes("Sources & References") &&
+                    !fullOutputText.includes("http://") &&
+                    !fullOutputText.includes("https://")
+                  ) {
+                    const citations = formatSourceCitations(searchResults);
+                    controller.enqueue(encoder.encode(citations));
+                  }
+                  break;
+                }
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split("\n");
                 buffer = lines.pop() ?? "";
@@ -184,13 +237,35 @@ export const Route = createFileRoute("/api/chat")({
                   if (!payload || payload === "[DONE]") continue;
                   try {
                     const parsed = JSON.parse(payload) as {
-                      candidates?: { content?: { parts?: { text?: string }[] } }[];
+                      candidates?: {
+                        content?: { parts?: { text?: string }[] };
+                        groundingMetadata?: {
+                          groundingChunks?: { web?: { uri?: string; title?: string } }[];
+                        };
+                      }[];
                       choices?: { delta?: { content?: string } }[];
                     };
                     const delta =
                       parsed.candidates?.[0]?.content?.parts?.[0]?.text ??
                       parsed.choices?.[0]?.delta?.content;
-                    if (delta) controller.enqueue(encoder.encode(delta));
+                    if (delta) {
+                      fullOutputText += delta;
+                      controller.enqueue(encoder.encode(delta));
+                    }
+
+                    // Extract native grounding chunks if provided by Gemini
+                    const nativeChunks = parsed.candidates?.[0]?.groundingMetadata?.groundingChunks;
+                    if (Array.isArray(nativeChunks)) {
+                      for (const c of nativeChunks) {
+                        if (c.web?.uri && c.web?.title && !searchResults.some((r) => r.url === c.web?.uri)) {
+                          searchResults.push({
+                            title: c.web.title,
+                            url: c.web.uri,
+                            snippet: "",
+                          });
+                        }
+                      }
+                    }
                   } catch {
                     // partial frame, ignore
                   }
@@ -210,6 +285,7 @@ export const Route = createFileRoute("/api/chat")({
             "Content-Type": "text/plain; charset=utf-8",
             "Cache-Control": "no-cache",
             "X-Memory-Saved": savedMemory ? "1" : "0",
+            "X-Search-Grounding": searchResults.length > 0 ? "1" : "0",
           },
         });
       },
