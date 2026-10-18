@@ -1,0 +1,24 @@
+# ROO CODE SYSTEM RULES & AUTONOMOUS AGENT DIRECTIVES
+
+## 1. STRICT CONTEXT MEMORY
+- Always inspect the project layout, dependencies, and configuration from the repository root before modifying or creating files.
+- Keep all original Lovable UI designs, styling tokens, sticky input bar layouts, Arc Reactor HUD, and component structures 100% intact. Never destroy existing UI flows.
+
+## 2. AUTONOMOUS ERROR SELF-HEALING LOOP
+- If an npm build failure, TypeScript error, API mismatch, or terminal exception occurs, do NOT prompt or ask the user.
+- Read and analyze the stack trace immediately.
+- Edit and repair the affected file.
+- Re-run build/test commands, restart local servers if applicable, and verify connectivity automatically.
+
+## 3. CLEAN API INTEGRATION
+- Bypass strict prefix restrictions (such as `sk_` or `sk-`) to seamlessly integrate direct Google Gemini API requests (`AIzaSy...`) without crashing or rejecting valid keys.
+- Handle rate limits with exponential backoff and sanitize upstream payloads cleanly.
+
+## 4. CODERABBIT AUTOMATED CODE REVIEW GATES
+- All code modifications must pass `coderabbit-review`.
+- Zero syntax errors (verified via Python AST and JS/TS syntax engines).
+- Zero hardcoded secrets, injection vulnerabilities, or unhandled exceptions.
+
+## 5. SPEC-DRIVEN CONTINUOUS EXECUTION (GSD & RALPH LOOP)
+- Operate in structured loops: Plan -> Implement -> Test -> Review -> Commit.
+- Keep cycling through task items until 100% of requirements are satisfied.

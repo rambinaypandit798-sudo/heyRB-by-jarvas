@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "/data/data/com.termux/files/usr/bin/mcp-server-filesystem",
+      "args": [
+        "/data/data/com.termux/files/home"
+      ],
+      "env": {}
+    },
+    "supabase": {
+      "command": "node",
+      "args": [
+        "/data/data/com.termux/files/home/scripts/supabase_mcp_wrapper.js"
+      ],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    "gsd": {
+      "command": "/data/data/com.termux/files/usr/bin/gsd-mcp-server",
+      "args": [],
+      "env": {}
+    }
+  }
+}

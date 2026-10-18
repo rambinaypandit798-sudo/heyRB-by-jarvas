@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "keys": {
+    "resolve_model_ids": {
+      "setValue": "omit",
+      "runtimes": [
+        "antigravity"
+      ]
+    },
+    "runtime": {
+      "setValue": "antigravity",
+      "runtimes": [
+        "antigravity"
+      ]
+    }
+  }
+}

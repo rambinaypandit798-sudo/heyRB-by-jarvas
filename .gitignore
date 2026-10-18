@@ -1,0 +1,36 @@
+# Credentials & Secrets
+.git-credentials
+.env*
+*.token
+*.key
+antigravity-oauth-token
+.ssh/
+
+# Databases & Runtime State
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.pb
+*.pbtxt
+
+# Logs & Caches
+*.log
+.cache/
+.npm/
+__pycache__/
+*.pyc
+node_modules/
+.gemini/antigravity-cli/log/
+.gemini/antigravity-cli/crashes/
+.gemini/antigravity-cli/brain/
+
+# Temporary files
+.ralph/.tmp/
+.ralph/runs/
+
+# Subproject Repositories
+rb-agent-os/
+rb-agent-source/
+rb_ai/
+
