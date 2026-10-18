@@ -45,3 +45,9 @@ android/*/build/
 android/local.properties
 *.apk
 *.aab
+
+# Local binaries and desktop builds
+Antigravity-x64/
+.local/
+.gemini/antigravity-cli/bin/
+
