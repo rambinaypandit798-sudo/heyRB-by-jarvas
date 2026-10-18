@@ -79,7 +79,7 @@ function ChatScreen() {
           onDelta: setStreaming,
         });
         if (failover) {
-          toast.info("Auto-Failover Active: Answered via OpenRouter");
+          toast.info("Auto-Failover Active: Answered via Google Gemini (OpenRouter cooldown)");
         }
         const finalText = cleanText(text);
         if (finalText) {
