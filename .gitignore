@@ -1,6 +1,8 @@
 # Credentials & Secrets
 .git-credentials
-.env*
+.env
+.env.*
+!.env.example
 *.token
 *.key
 antigravity-oauth-token
@@ -25,12 +27,21 @@ node_modules/
 .gemini/antigravity-cli/crashes/
 .gemini/antigravity-cli/brain/
 
-# Temporary files
+# Temporary files & runtime states
 .ralph/.tmp/
 .ralph/runs/
+.media-state.json
+.usage-stats.json
+.tanstack/
+.output/
+.wrangler/
+dist/
+dist-apk/
 
-# Subproject Repositories
-rb-agent-os/
-rb-agent-source/
-rb_ai/
-
+# Android Build artifacts
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+*.apk
+*.aab

@@ -1,0 +1,52 @@
+# CodeRabbit Configuration File
+# Language & Linter settings, auto-review rules, and security guidelines
+
+version: 2
+language: "en-US"
+tone_instructions: "Concise, technical, actionable, zero filler."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "wip"
+      - "draft"
+    drafts: false
+  tools:
+    ast-grep:
+      enabled: true
+    shellcheck:
+      enabled: true
+    python:
+      linters:
+        - flake8
+        - pylint
+    typescript:
+      linters:
+        - eslint
+        - oxlint
+
+security:
+  scan_hardcoded_secrets: true
+  scan_sql_injection: true
+  scan_command_injection: true
+  strict_api_prefix_policy: "flexible" # Do NOT enforce rigid sk_ / sk- prefixes; permit Google Gemini AIzaSy... keys
+
+path_filters:
+  - "!**/*.lock"
+  - "!**/dist/**"
+  - "!**/build/**"
+  - "!**/node_modules/**"
+  - "!**/.git/**"
+  - "!**/.cache/**"
+  - "!**/__pycache__/**"
+
+guidelines:
+  - "Preserve all original Lovable UI designs, sticky input bar layouts, and component structures 100% intact."
+  - "Autonomous Error Self-Healing: In case of build failure or runtime exception, analyze stack trace, fix code, and re-verify automatically."
+  - "Never commit hardcoded API keys or secrets."
+  - "Ensure Python code parses cleanly via ast.parse and JS/TS compiles without syntax errors."

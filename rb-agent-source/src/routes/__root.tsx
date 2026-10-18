@@ -79,16 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "RB Agent — Personal AI Assistant" },
+      { title: "RB Agent by Jarvis — Personal AI Assistant" },
       {
         name: "description",
         content:
-          "RB Agent is a voice powered personal AI assistant and multi agent automation hub with long term memory.",
+          "RB Agent by Jarvis is a voice powered personal AI assistant and multi agent automation hub with long term memory.",
       },
-      { property: "og:title", content: "RB Agent — Personal AI Assistant" },
+      { property: "og:title", content: "RB Agent by Jarvis — Personal AI Assistant" },
       {
         property: "og:description",
-        content: "Voice powered personal AI assistant, multi agent hub and permanent memory vault.",
+        content: "RB Agent by Jarvis — Voice powered personal AI assistant, multi agent hub and permanent memory vault.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

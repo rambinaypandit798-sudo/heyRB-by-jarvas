@@ -74,6 +74,19 @@
       ],
       "passes": true,
       "status": "completed"
+    },
+    {
+      "id": "TASK-7",
+      "title": "Autonomous Git Repo, CI/CD & Android APK Build Loop",
+      "description": "Configure branding 'RB Agent by Jarvis' (heyRB-by-jarvas), create remote repo, push complete codebase, execute CI/CD build loop via GitHub Actions, and produce verified downloadable APK artifact.",
+      "acceptanceCriteria": [
+        "All project metadata and branding updated to 'RB Agent by Jarvis' (heyRB-by-jarvas)",
+        "GitHub repository created and full codebase staged and pushed to origin main",
+        "Android Gradle project configured and built via CI/CD workflow",
+        "Final downloadable APK artifact heyRB-by-jarvas.apk generated, downloaded, and verified locally"
+      ],
+      "passes": false,
+      "status": "in_progress"
     }
   ]
 }

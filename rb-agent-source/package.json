@@ -1,5 +1,7 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "heyrb-by-jarvas",
+  "displayName": "RB Agent by Jarvis",
+  "description": "RB Agent by Jarvis — Autonomous Voice-Powered Personal AI Assistant & Android System Hub",
   "private": true,
   "sideEffects": false,
   "type": "module",

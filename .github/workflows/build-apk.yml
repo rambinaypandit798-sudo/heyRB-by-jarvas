@@ -1,0 +1,65 @@
+name: Build RB Agent by Jarvis APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Assemble & Publish Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Stage Output APK
+        run: |
+          mkdir -p dist-apk
+          APK_PATH=$(find android/app/build/outputs/apk -type f -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ]; then
+            echo "Found APK at $APK_PATH"
+            cp "$APK_PATH" dist-apk/heyRB-by-jarvas.apk
+            ls -lh dist-apk/heyRB-by-jarvas.apk
+          else
+            echo "Error: APK not found in android/app/build/outputs/apk"
+            exit 1
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: heyRB-by-jarvas-apk
+          path: dist-apk/heyRB-by-jarvas.apk
+          retention-days: 14
+
+      - name: Create or Update GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete v1.0.0 --yes --cleanup-tag || true
+          gh release create v1.0.0 dist-apk/heyRB-by-jarvas.apk \
+            --title "RB Agent by Jarvis v1.0.0" \
+            --notes "Automated Android APK build for RB Agent by Jarvis (heyRB-by-jarvas). Includes background wake-word listening service and direct Android Intent dispatch."

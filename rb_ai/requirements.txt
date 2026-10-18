@@ -1,0 +1,9 @@
+# Core RB.AI Python requirements
+# Note: RB.AI is designed with standard library fallbacks so it works immediately.
+# Installing these enables advanced streaming and REST performance.
+requests>=2.31.0
+websockets>=12.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+pydantic>=2.6.0
+google-generativeai>=0.8.0
