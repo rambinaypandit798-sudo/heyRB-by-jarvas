@@ -57,7 +57,7 @@ sync_repo() {
   # Pre-commit CodeRabbit Quality Check
   if command -v coderabbit-review &>/dev/null; then
     echo -e "\n${CYAN}🐰 Running CodeRabbit pre-commit quality gate...${RESET}"
-    if ! coderabbit-review . --strict; then
+    if ! coderabbit-review --git --strict; then
       echo -e "${RED}⚠ CodeRabbit detected critical issues! Reviewing warnings before commit...${RESET}"
     else
       echo -e "${GREEN}✓ CodeRabbit quality gate passed.${RESET}"

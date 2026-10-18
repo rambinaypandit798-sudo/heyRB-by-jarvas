@@ -186,8 +186,27 @@ export const Route = createFileRoute("/api/chat")({
             });
           }
 
-          if (upstream.status === 429)
-            return json({ error: upstreamMessage || "Too many requests right now. Try again in a moment." }, 429);
+          if (upstream.status === 429) {
+            const greetingMatch = /^(hi|hello|hey|namaste|नमस्ते|who are you|what is your mission|what can you do|help)/i.test(lastUser.trim());
+            if (greetingMatch) {
+              const fallbackText = `नमस्ते, Ram Binay Pandit! I am RB (Robotic Brain / Rapid Butler), your autonomous personal operating system agent.
+
+• Direct Hardware Control: Battery, torch, clipboard, notifications, and Termux terminal integration.
+• Autonomous Code & Automation: Continuous task execution, Ralph Loop, GSD-Core, and CodeRabbit code audits.
+• Dynamic Memory & Notes: Local SQLite storage synchronized with Supabase cloud.
+• Live Internet Research: Real-time search grounding and source citation verification.
+
+(Note: Google Gemini cloud API is currently cooling down from a rate-limit quota. Cloud reasoning will resume automatically.)`;
+              return new Response(fallbackText, {
+                headers: {
+                  "Content-Type": "text/plain; charset=utf-8",
+                  "Cache-Control": "no-cache",
+                  "X-Autonomous-Fallback": "1",
+                },
+              });
+            }
+            return json({ error: upstreamMessage || "Google Gemini API rate limit reached. Please retry in a few moments." }, 429);
+          }
           if (upstream.status === 402)
             return json({ error: upstreamMessage || "AI credits are exhausted. Add credits to keep chatting." }, 402);
           if (upstream.status === 401)

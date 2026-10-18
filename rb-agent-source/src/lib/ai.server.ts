@@ -1,9 +1,9 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
 export function gatewayKey() {
-  const key = process.env["GEMINI_API_KEY"] || process.env["LOVABLE_API_KEY"];
+  const key = process.env["GEMINI_API_KEY"] || process.env["VITE_GEMINI_API_KEY"] || process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured yet.");
-  return key;
+  return key.trim().replace(/^["']|["']$/g, "");
 }
 
 export function normalizeModelName(rawModel: string): string {

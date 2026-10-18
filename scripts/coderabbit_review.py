@@ -15,7 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 # ANSI Color codes
 BOLD = "\033[1m"
@@ -98,28 +98,30 @@ CODE_QUALITY_PATTERNS = [
 
 IGNORE_DIRS = {
     ".git", "node_modules", ".cache", "__pycache__", ".npm", "dist", "build",
-    ".gemini", ".termux", ".agents/ralph/runs", "coverage", ".next"
+    ".gemini", ".termux", ".agents/ralph/runs", "coverage", ".next",
+    ".planning", ".output", ".venv", "venv", ".cargo", ".rustup", "site-packages"
 }
 
 IGNORE_EXTENSIONS = {
     ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp", ".svg",
     ".db", ".sqlite", ".db-wal", ".db-shm", ".tar", ".gz", ".zip",
-    ".woff", ".woff2", ".ttf", ".eot", ".lock", ".pb", ".pbtxt"
+    ".woff", ".woff2", ".ttf", ".eot", ".lock", ".pb", ".pbtxt",
+    ".jsonl", ".log"
 }
 
 class CodeRabbitReviewer:
-    def __init__(self, target_path: str = ".", verbose: bool = False):
-        self.target_path = Path(target_path).resolve()
+    def __init__(self, target_paths: Optional[List[str]] = None, verbose: bool = False):
+        self.target_paths = [Path(p).resolve() for p in (target_paths or ["."])]
         self.verbose = verbose
         self.findings: List[Dict[str, Any]] = []
         self.files_scanned = 0
         self.syntax_errors = 0
 
     def should_ignore(self, path: Path) -> bool:
-        if path.name.startswith(".env"):
+        if path.name.startswith(".env") or path.name.endswith(".lock") or path.name.endswith(".jsonl"):
             return True
         for part in path.parts:
-            if part in IGNORE_DIRS:
+            if part in IGNORE_DIRS or part.startswith(".git"):
                 return True
         if path.suffix.lower() in IGNORE_EXTENSIONS:
             return True
@@ -229,16 +231,18 @@ class CodeRabbitReviewer:
                     })
 
     def run_review(self) -> Dict[str, Any]:
-        if self.target_path.is_file():
-            self.scan_file(self.target_path)
-        else:
-            for root, dirs, files in os.walk(self.target_path):
-                # Filter dirs in place
-                dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".git")]
-                for file in files:
-                    fp = Path(root) / file
-                    if not self.should_ignore(fp):
-                        self.scan_file(fp)
+        for target in self.target_paths:
+            if target.is_file():
+                if not self.should_ignore(target):
+                    self.scan_file(target)
+            elif target.is_dir():
+                for root, dirs, files in os.walk(target):
+                    # Filter dirs in place
+                    dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".git") and not d.startswith(".gemini")]
+                    for file in files:
+                        fp = Path(root) / file
+                        if not self.should_ignore(fp):
+                            self.scan_file(fp)
 
         critical_count = sum(1 for f in self.findings if f["severity"] == "CRITICAL")
         high_count = sum(1 for f in self.findings if f["severity"] == "HIGH")
@@ -322,7 +326,8 @@ class CodeRabbitReviewer:
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="CodeRabbit Automated Code Review Tool")
-    parser.add_argument("path", nargs="?", default=".", help="Path to file or directory to review")
+    parser.add_argument("paths", nargs="*", default=[], help="Paths to files or directories to review")
+    parser.add_argument("--git", action="store_true", help="Only review modified / staged git files")
     parser.add_argument("--json", action="store_true", help="Output findings as JSON")
     parser.add_argument("--check", action="store_true", help="Quick sanity check")
     parser.add_argument("--verbose", action="store_true", help="Verbose output")
@@ -334,7 +339,32 @@ def main():
         print(f"🐰 CodeRabbit Review Engine v{VERSION} is active and ready in Termux.")
         sys.exit(0)
 
-    reviewer = CodeRabbitReviewer(target_path=args.path, verbose=args.verbose)
+    target_paths = args.paths
+    if args.git:
+        try:
+            res = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
+            git_files = []
+            for line in res.stdout.splitlines():
+                if len(line) >= 4:
+                    raw_file = line[3:].strip()
+                    if " -> " in raw_file:
+                        raw_file = raw_file.split(" -> ")[1].strip()
+                    p = Path(raw_file)
+                    if p.exists() and p.is_file():
+                        git_files.append(str(p))
+            target_paths = git_files
+            if not target_paths:
+                print(f"🐰 CodeRabbit Review: No modified git files to scan.")
+                sys.exit(0)
+        except Exception as e:
+            if args.verbose:
+                print(f"Git inspection failed: {e}")
+            target_paths = ["."]
+
+    if not target_paths:
+        target_paths = ["."]
+
+    reviewer = CodeRabbitReviewer(target_paths=target_paths, verbose=args.verbose)
     result = reviewer.run_review()
     reviewer.print_report(result, json_output=args.json)
 
