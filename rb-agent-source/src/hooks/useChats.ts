@@ -177,6 +177,20 @@ export function useDeleteChat() {
   });
 }
 
+export class ChatApiError extends Error {
+  status: number;
+  isQuotaExceeded: boolean;
+  retryAfter: number;
+
+  constructor(message: string, status = 500, isQuotaExceeded = false, retryAfter = 15) {
+    super(message);
+    this.name = "ChatApiError";
+    this.status = status;
+    this.isQuotaExceeded = isQuotaExceeded;
+    this.retryAfter = retryAfter;
+  }
+}
+
 /** Streams an assistant reply from the RB Agent backend. */
 export async function streamReply(opts: {
   agent: string;
@@ -200,13 +214,40 @@ export async function streamReply(opts: {
 
   if (!res.ok || !res.body) {
     let message = "RB Agent could not answer right now.";
-    try {
-      const payload = (await res.json()) as { error?: string };
-      if (payload.error) message = payload.error;
-    } catch {
-      // keep default
+    let isQuotaExceeded = res.status === 429;
+    let retryAfter = 15;
+
+    const retryHeader = res.headers.get("Retry-After");
+    if (retryHeader) {
+      const parsedSeconds = parseInt(retryHeader, 10);
+      if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
+        retryAfter = parsedSeconds;
+      }
     }
-    throw new Error(message);
+
+    try {
+      const payload = (await res.json()) as {
+        error?: string;
+        politeMessage?: string;
+        isQuotaExceeded?: boolean;
+        retryAfter?: number;
+      };
+      if (payload.politeMessage) {
+        message = payload.politeMessage;
+      } else if (payload.error) {
+        message = payload.error;
+      }
+      if (payload.isQuotaExceeded !== undefined) {
+        isQuotaExceeded = payload.isQuotaExceeded;
+      }
+      if (payload.retryAfter && typeof payload.retryAfter === "number") {
+        retryAfter = payload.retryAfter;
+      }
+    } catch {
+      // keep defaults
+    }
+
+    throw new ChatApiError(message, res.status, isQuotaExceeded, retryAfter);
   }
 
   const reader = res.body.getReader();

@@ -7,8 +7,9 @@ import { z } from "zod";
 import { AppShell } from "@/components/AppShell";
 import { InputBar } from "@/components/InputBar";
 import { LiveSubtitles, MessageList } from "@/components/MessageList";
+import { QuotaNoticeCard, type QuotaErrorInfo } from "@/components/QuotaNoticeCard";
 import { useProfile, useSettings, useUpdateSettings } from "@/hooks/useAccount";
-import { addMessage, streamReply, useMessages } from "@/hooks/useChats";
+import { addMessage, streamReply, useMessages, ChatApiError } from "@/hooks/useChats";
 import { supabase } from "@/integrations/supabase/client";
 import { agentName } from "@/lib/agents";
 import { cleanText } from "@/lib/format";
@@ -41,7 +42,7 @@ function ChatScreen() {
 
   const [streaming, setStreaming] = useState<string | null>(null);
   const [thinking, setThinking] = useState(false);
-  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<QuotaErrorInfo | null>(null);
   const [liveMode, setLiveMode] = useState(live === 1);
   const [agent, setAgent] = useState("core");
   const [title, setTitle] = useState("RB Agent");
@@ -87,7 +88,23 @@ function ChatScreen() {
           if (liveMode) speechEngine.speak(saved.id, finalText, voiceId);
         }
       } catch (error) {
-        setReplyError(error instanceof Error ? error.message : "RB Agent could not reply.");
+        const isQuota =
+          error instanceof ChatApiError
+            ? error.isQuotaExceeded
+            : (error as any)?.status === 429 ||
+              /quota|rate limit|cooling down|too many requests|resource_exhausted/i.test(
+                error instanceof Error ? error.message : ""
+              );
+        const retryAfter =
+          error instanceof ChatApiError
+            ? error.retryAfter
+            : (error as any)?.retryAfter || 15;
+
+        setReplyError({
+          message: error instanceof Error ? error.message : "RB Agent could not reply.",
+          isQuota,
+          retryAfter,
+        });
       } finally {
         setStreaming(null);
         setThinking(false);
@@ -141,14 +158,18 @@ function ChatScreen() {
               thinking={thinking}
               voiceId={voiceId}
             />
-            {replyError ? (
-              <div role="alert" className="mt-4 flex items-center justify-between gap-3 border border-border bg-muted px-4 py-3 text-sm text-foreground">
-                <span>{replyError}</span>
-                <Button type="button" variant="outline" size="sm" disabled={thinking} onClick={() => respond(messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })))}>
-                  Retry
-                </Button>
-              </div>
-            ) : null}
+            <QuotaNoticeCard
+              error={replyError}
+              onRetry={() =>
+                respond(
+                  messages.map((m) => ({
+                    role: m.role as "user" | "assistant",
+                    content: m.content,
+                  }))
+                )
+              }
+              disabled={thinking}
+            />
           </div>
         </div>
 

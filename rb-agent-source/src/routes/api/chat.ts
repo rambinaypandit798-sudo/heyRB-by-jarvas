@@ -146,11 +146,55 @@ export const Route = createFileRoute("/api/chat")({
           ...history.map((m) => ({ role: m.role, content: m.content })),
         ];
 
+// In-memory LRU response cache for offline & rate-limit fallback
+type CacheEntry = {
+  response: string;
+  timestamp: number;
+  searchResults?: SearchResult[];
+};
+const responseCache = new Map<string, CacheEntry>();
+
+function normalizeCacheKey(text: string): string {
+  return text.toLowerCase().trim().replace(/[^\w\s\u0900-\u097F]/g, "").slice(0, 120);
+}
+
+function getCachedResponse(prompt: string): CacheEntry | null {
+  const key = normalizeCacheKey(prompt);
+  const entry = responseCache.get(key);
+  if (!entry) return null;
+  // Cache expires after 2 hours
+  if (Date.now() - entry.timestamp > 2 * 60 * 60 * 1000) {
+    responseCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function storeCachedResponse(prompt: string, response: string, searchResults?: SearchResult[]) {
+  const key = normalizeCacheKey(prompt);
+  if (responseCache.size > 200) {
+    const firstKey = responseCache.keys().next().value;
+    if (firstKey) responseCache.delete(firstKey);
+  }
+  responseCache.set(key, { response, timestamp: Date.now(), searchResults });
+}
+
         let upstream: Response;
         try {
           upstream = await chatCompletion(model, messages, { enableGoogleSearch: true });
         } catch (error) {
           console.error("Gemini API service connection failed", error);
+          // Check cached response before returning generic 503
+          const cached = getCachedResponse(lastUser);
+          if (cached?.response) {
+            return new Response(cached.response + "\n\n• Note: Serving from verified offline cache while API reconnects.", {
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Cache-Control": "no-cache",
+                "X-Response-Source": "cache",
+              },
+            });
+          }
           return json({ error: "The AI service is temporarily unavailable. Please retry your message." }, 503);
         }
 
@@ -170,7 +214,7 @@ export const Route = createFileRoute("/api/chat")({
           }
           console.error("Gemini API upstream error", upstream.status, upstreamMessage);
 
-          // Autonomous Self-Healing Fallback: If upstream hits 429 quota or 503, provide verified live search results
+          // 1. Autonomous Live Search Grounding Fallback on 429 / 503
           if (searchResults.length > 0 && (upstream.status === 429 || upstream.status === 503)) {
             const answer = `Here are the latest live facts retrieved for "${lastUser}":\n\n` +
               searchResults.map((r) => `• ${r.title}: ${r.snippet}`).join("\n\n") +
@@ -186,9 +230,23 @@ export const Route = createFileRoute("/api/chat")({
             });
           }
 
+          // 2. Offline Cached Response Fallback on 429
           if (upstream.status === 429) {
-            const greetingMatch = /^(hi|hello|hey|namaste|नमस्ते|who are you|what is your mission|what can you do|help)/i.test(lastUser.trim());
-            if (greetingMatch) {
+            const cached = getCachedResponse(lastUser);
+            if (cached?.response) {
+              return new Response(cached.response + "\n\n• Note: Serving from verified offline cache while cloud API cools down.", {
+                headers: {
+                  "Content-Type": "text/plain; charset=utf-8",
+                  "Cache-Control": "no-cache",
+                  "X-Response-Source": "cache",
+                  "X-Quota-Fallback": "1",
+                },
+              });
+            }
+
+            // 3. Conversational Core Assistant Fallback
+            const isIntentMatch = /^(hi|hello|hey|namaste|नमस्ते|who are you|what is your mission|what can you do|help|status|ping)/i.test(lastUser.trim());
+            if (isIntentMatch) {
               const fallbackText = `नमस्ते, Ram Binay Pandit! I am RB (Robotic Brain / Rapid Butler), your autonomous personal operating system agent.
 
 • Direct Hardware Control: Battery, torch, clipboard, notifications, and Termux terminal integration.
@@ -205,7 +263,24 @@ export const Route = createFileRoute("/api/chat")({
                 },
               });
             }
-            return json({ error: upstreamMessage || "Google Gemini API rate limit reached. Please retry in a few moments." }, 429);
+
+            // 4. Polite Quota Warning Response with Retry-After metadata
+            return new Response(
+              JSON.stringify({
+                error: upstreamMessage || "Google Gemini API rate limit reached.",
+                politeMessage: "Google Gemini API capacity is momentarily resting. Your conversation and memory vault are safely preserved. Please wait a moment and click Retry.",
+                isQuotaExceeded: true,
+                retryAfter: 15,
+              }),
+              {
+                status: 429,
+                headers: {
+                  "Content-Type": "application/json",
+                  "Retry-After": "15",
+                  "X-Quota-Exceeded": "1",
+                },
+              }
+            );
           }
           if (upstream.status === 402)
             return json({ error: upstreamMessage || "AI credits are exhausted. Add credits to keep chatting." }, 402);
@@ -243,6 +318,9 @@ export const Route = createFileRoute("/api/chat")({
                   ) {
                     const citations = formatSourceCitations(searchResults);
                     controller.enqueue(encoder.encode(citations));
+                  }
+                  if (fullOutputText.trim()) {
+                    storeCachedResponse(lastUser, fullOutputText, searchResults);
                   }
                   break;
                 }

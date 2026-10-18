@@ -1,9 +1,45 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
+// Cooldown tracking for rotated API keys
+const keyCooldowns = new Map<string, number>();
+
+export function getAllGatewayKeys(): string[] {
+  const rawKeys = [
+    process.env["GEMINI_API_KEY"],
+    process.env["VITE_GEMINI_API_KEY"],
+    process.env["LOVABLE_API_KEY"],
+    ...(process.env["GEMINI_API_KEYS"] ? process.env["GEMINI_API_KEYS"].split(",") : []),
+  ];
+  const seen = new Set<string>();
+  const valid: string[] = [];
+  for (const k of rawKeys) {
+    if (!k) continue;
+    const clean = k.trim().replace(/^["']|["']$/g, "");
+    if (clean && !seen.has(clean)) {
+      seen.add(clean);
+      valid.push(clean);
+    }
+  }
+  return valid;
+}
+
+export function getActiveKey(): string {
+  const keys = getAllGatewayKeys();
+  if (keys.length === 0) throw new Error("AI is not configured yet.");
+  const now = Date.now();
+  for (const k of keys) {
+    const cd = keyCooldowns.get(k) || 0;
+    if (now > cd) return k;
+  }
+  return keys[0];
+}
+
+export function markKeyCooldown(key: string, seconds = 45) {
+  keyCooldowns.set(key, Date.now() + seconds * 1000);
+}
+
 export function gatewayKey() {
-  const key = process.env["GEMINI_API_KEY"] || process.env["VITE_GEMINI_API_KEY"] || process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("AI is not configured yet.");
-  return key.trim().replace(/^["']|["']$/g, "");
+  return getActiveKey();
 }
 
 export function normalizeModelName(rawModel: string): string {
@@ -19,6 +55,36 @@ export function normalizeModelName(rawModel: string): string {
   if (clean.includes("flash")) return "gemini-3.8-flash";
   if (clean.includes("pro")) return "gemini-pro-latest";
   return "gemini-3.8-flash";
+}
+
+export function getFallbackModels(primaryModel: string): string[] {
+  const normalized = normalizeModelName(primaryModel);
+  const fallbacks: string[] = [normalized];
+
+  if (normalized.includes("pro")) {
+    if (!fallbacks.includes("gemini-pro-latest")) fallbacks.push("gemini-pro-latest");
+    if (!fallbacks.includes("gemini-3.8-flash")) fallbacks.push("gemini-3.8-flash");
+    if (!fallbacks.includes("gemini-flash-latest")) fallbacks.push("gemini-flash-latest");
+  } else {
+    if (!fallbacks.includes("gemini-3.8-flash")) fallbacks.push("gemini-3.8-flash");
+    if (!fallbacks.includes("gemini-flash-latest")) fallbacks.push("gemini-flash-latest");
+    if (!fallbacks.includes("gemini-3.7-flash")) fallbacks.push("gemini-3.7-flash");
+    if (!fallbacks.includes("gemini-flash-lite-latest")) fallbacks.push("gemini-flash-lite-latest");
+  }
+  return fallbacks;
+}
+
+export function calculateBackoffDelay(attempt: number, response?: Response): number {
+  const retryAfterHeader = response?.headers?.get("Retry-After");
+  if (retryAfterHeader) {
+    const seconds = Number(retryAfterHeader);
+    if (Number.isFinite(seconds) && seconds > 0) {
+      return Math.min(seconds * 1000, 6000);
+    }
+  }
+  const base = 800 * Math.pow(2, attempt);
+  const jitter = Math.floor(Math.random() * 300) - 150;
+  return Math.min(Math.max(base + jitter, 500), 5000);
 }
 
 export function formatGeminiPayload(
@@ -70,7 +136,6 @@ export async function embed(text: string): Promise<number[] | null> {
       }),
     });
     if (!res.ok) {
-      console.error("embedding failed", res.status, await res.text());
       return null;
     }
     const json = (await res.json()) as { embedding?: { values?: number[] } };
@@ -85,59 +150,104 @@ export async function chatCompletion(
   model: string,
   messages: { role: string; content: string }[],
   options?: { enableGoogleSearch?: boolean }
-) {
-  const targetModel = normalizeModelName(model);
-  const key = gatewayKey();
+): Promise<Response> {
+  const fallbackModels = getFallbackModels(model);
   const payload = formatGeminiPayload(messages, options);
+  const maxAttempts = 3;
 
-  const request = () =>
-    fetch(`${GEMINI_BASE}/models/${targetModel}:streamGenerateContent?alt=sse&key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  let lastResponse: Response | null = null;
+  let lastError: unknown = null;
 
-  const waitBeforeRetry = async (response?: Response) => {
-    const retryAfter = Number(response?.headers.get("Retry-After"));
-    const delay = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 700;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 3000)));
-  };
+  for (let modelIdx = 0; modelIdx < fallbackModels.length; modelIdx++) {
+    const targetModel = fallbackModels[modelIdx];
 
-  let response: Response;
-  try {
-    response = await request();
-  } catch {
-    await waitBeforeRetry();
-    response = await request();
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const key = getActiveKey();
+
+      try {
+        const response = await fetch(
+          `${GEMINI_BASE}/models/${targetModel}:streamGenerateContent?alt=sse&key=${key}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (response.ok) {
+          return response;
+        }
+
+        lastResponse = response;
+
+        // If rate limit (429) or transient server error (500, 503)
+        if (response.status === 429 || response.status >= 500) {
+          if (response.status === 429) {
+            markKeyCooldown(key, 30);
+          }
+
+          if (attempt < maxAttempts - 1) {
+            const delay = calculateBackoffDelay(attempt, response);
+            await response.body?.cancel().catch(() => {});
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+        } else {
+          // Client errors (400, 401, 403, 404) are not retried with this model
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        if (attempt < maxAttempts - 1) {
+          const delay = calculateBackoffDelay(attempt);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
   }
-  if (response.status === 429 || response.status >= 500) {
-    await waitBeforeRetry(response);
-    await response.body?.cancel();
-    response = await request();
+
+  if (lastResponse) {
+    return lastResponse;
   }
-  return response;
+
+  throw lastError || new Error("Gemini API request failed after exponential backoff.");
 }
 
 export async function completeOnce(model: string, messages: { role: string; content: string }[]) {
-  try {
-    const targetModel = normalizeModelName(model);
-    const key = gatewayKey();
-    const payload = formatGeminiPayload(messages);
+  const fallbackModels = getFallbackModels(model);
+  const payload = formatGeminiPayload(messages);
 
-    const res = await fetch(`${GEMINI_BASE}/models/${targetModel}:generateContent?key=${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
-  } catch (error) {
-    console.error("completeOnce failed", error);
-    return null;
+  for (const targetModel of fallbackModels) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const key = getActiveKey();
+        const res = await fetch(`${GEMINI_BASE}/models/${targetModel}:generateContent?key=${key}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (res.ok) {
+          const json = (await res.json()) as {
+            candidates?: { content?: { parts?: { text?: string }[] } }[];
+          };
+          return json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
+        }
+
+        if (res.status === 429) {
+          markKeyCooldown(key, 30);
+          const delay = calculateBackoffDelay(attempt, res);
+          await res.body?.cancel().catch(() => {});
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        } else {
+          break;
+        }
+      } catch (error) {
+        console.error("completeOnce retry failure", error);
+      }
+    }
   }
+  return null;
 }
 
 export const FORMAT_RULES = `Output formatting rules that you must never break:
