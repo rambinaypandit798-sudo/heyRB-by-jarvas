@@ -161,7 +161,10 @@ class CodeRabbitReviewer:
 
     def scan_file(self, file_path: Path):
         self.files_scanned += 1
-        rel_path = file_path.relative_to(self.target_path) if file_path.is_relative_to(self.target_path) else file_path
+        try:
+            rel_path = file_path.relative_to(Path.cwd())
+        except ValueError:
+            rel_path = file_path
 
         # 1. Syntax Check
         syntax_err = None
