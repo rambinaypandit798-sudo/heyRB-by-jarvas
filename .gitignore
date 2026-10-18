@@ -23,9 +23,8 @@ antigravity-oauth-token
 __pycache__/
 *.pyc
 node_modules/
-.gemini/antigravity-cli/log/
-.gemini/antigravity-cli/crashes/
-.gemini/antigravity-cli/brain/
+.gemini/
+
 
 # Temporary files & runtime states
 .ralph/.tmp/
