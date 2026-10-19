@@ -30,3 +30,10 @@
 - [x] Preserved all environment-aware intent parsers, local storage checkpoints, and GitHub CI/CD APK build pipelines (`heyRB-by-jarvas`).
 - [x] Ran `npm run build` in `rb-agent-source` — compiled successfully with 0 errors.
 - [x] Ran `python scripts/coderabbit_review.py --git` — **Passed with 0 Critical, 0 High, 0 Medium, 0 Low findings and 0 syntax errors.**
+
+### 6. Zero-Crash Android Runtime Stability & Android 12+ Mutability [COMPLETED]
+- [x] Explicit `PendingIntent.FLAG_IMMUTABLE` added to `ForegroundVoiceService.java` to prevent Android 12+ (API 31+) security crashes.
+- [x] Wrapped all native bridge initializations, WebView callbacks, window styling, and audio hooks in defensive `Throwable` catch blocks.
+- [x] Ensured JavaScriptInterface methods (`launchApp`, `openYouTube`, `openSettings`, `speakConfirmation`) are 100% thread-safe with `activity.runOnUiThread()` and `ttsLock` synchronization.
+- [x] Automatic fallback to browser YouTube search if the native YouTube app is disabled or uninstalled.
+- [x] Safe runtime permission checks for `RECORD_AUDIO` and `POST_NOTIFICATIONS` before foreground service startup on Android 13/14+.
