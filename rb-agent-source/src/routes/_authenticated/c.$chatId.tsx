@@ -16,8 +16,8 @@ import { cleanText } from "@/lib/format";
 import { usableModel } from "@/lib/models";
 import { speechEngine } from "@/lib/speech";
 import { DEFAULT_VOICE } from "@/lib/voices";
-import { Button } from "@/components/ui/button";
 import { executeClientMediaCommand } from "@/lib/commands";
+import { executeDeviceAction } from "@/lib/actions";
 
 export const Route = createFileRoute("/_authenticated/c/$chatId")({
   validateSearch: z.object({ live: z.number().optional() }),
@@ -73,36 +73,25 @@ function ChatScreen() {
       setThinking(true);
       setReplyError(null);
       try {
-        const {
-          text,
-          memorySaved,
-          failover,
-          intentAction,
-          intentMode,
-          intentUrl,
-          intentFallback,
-          mediaCommand,
-        } = await streamReply({
+        const replyResult = await streamReply({
           agent,
           model,
           history,
           onDelta: setStreaming,
         });
+        const { text, memorySaved, failover, intentAction, mediaCommand } = replyResult;
         if (failover) {
           toast.info("Auto-Failover Active: Answered via Google Gemini (OpenRouter cooldown)");
         }
         if (intentAction) {
-          if (intentMode === "web") {
-            const targetUrl = intentFallback || intentUrl;
-            if (targetUrl) {
-              toast.success("Opening in browser tab");
-              try {
-                window.open(targetUrl, "_blank");
-              } catch {}
-            }
-          } else {
-            toast.success("App launched directly on Android");
-          }
+          executeDeviceAction({
+            type: replyResult.intentType || "custom",
+            appName: replyResult.intentApp || "App",
+            actionText: replyResult.intentActionText || "Opening application",
+            query: replyResult.intentQuery || "",
+            url: replyResult.intentUrl || "",
+            fallbackUrl: replyResult.intentFallback || "",
+          });
         }
         if (mediaCommand) {
           executeClientMediaCommand(mediaCommand);

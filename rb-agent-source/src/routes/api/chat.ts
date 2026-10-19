@@ -72,7 +72,9 @@ export const Route = createFileRoute("/api/chat")({
             .eq("id", user.id)
             .maybeSingle();
           if (profile?.display_name) profileName = profile.display_name;
-        } catch {}
+        } catch {
+          // Non-fatal profile lookup
+        }
 
         // Long term memory retrieval through the vector index.
         let memories: string[] = [];
@@ -109,7 +111,9 @@ export const Route = createFileRoute("/api/chat")({
                   kind: "preference",
                   embedding: memVector as unknown as string,
                 });
-              } catch {}
+              } catch {
+                // Non-fatal memory insert
+              }
             }
             if (!memories.includes(extracted)) memories.unshift(extracted);
           }
@@ -169,8 +173,13 @@ export const Route = createFileRoute("/api/chat")({
               "Cache-Control": "no-cache",
               "X-Intent-Action": "1",
               "X-Intent-Mode": launchResult.mode,
+              "X-Intent-Type": intent.type,
+              "X-Intent-App": intent.appName,
+              "X-Intent-Query": intent.query || "",
+              "X-Intent-Action-Text": intent.actionText,
               "X-Intent-Url": intent.url,
               "X-Intent-Fallback": intent.fallbackUrl || "",
+              "X-Spoken-Confirmation": encodeURIComponent(launchResult.spokenConfirmation || "हाँ, यह कर दिया है"),
               "X-Active-Provider": "local-intent",
               "X-Active-Model": "android-intent",
             },

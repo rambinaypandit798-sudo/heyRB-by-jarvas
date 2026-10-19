@@ -87,6 +87,70 @@
       ],
       "passes": true,
       "status": "completed"
+    },
+    {
+      "id": "TASK-8",
+      "title": "Pure Lovable UI Restoration & Aesthetics",
+      "description": "Remove injected native headers, banners, standalone status bars, and extra control buttons from MainActivity.java and web components, restoring pristine Lovable design system template.",
+      "acceptanceCriteria": [
+        "Injected native header with START WAKE-WORD SERVICE and operator badge removed from Android app",
+        "Lovable UI displays edge-to-edge in WebView with clean top navigation and drawer",
+        "Header, message bubbles, Arc Reactor HUD, and sticky input bar match pristine Lovable design system",
+        "Zero extraneous banners or standalone status bars"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-9",
+      "title": "Robust Text-to-Speech (TTS) & Audio Fix (speech.ts)",
+      "description": "Fix speech synthesis pipeline so tapping audio/speak button immediately triggers playback without failing or getting stuck, with word-accurate offset tracking and resume/pause.",
+      "acceptanceCriteria": [
+        "Tapping audio/speak button immediately triggers playback without getting stuck",
+        "Preload voices and handle Chrome/Android cancel/speak race conditions safely",
+        "Word-accurate character offset tracking maintained across pause and resume",
+        "Native Android TextToSpeech bridge support for instantaneous playback when in APK"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-10",
+      "title": "Full Android App Control & Spoken Confirmation",
+      "description": "Upgrade intent execution engine with deep device integration (AndroidBridge, direct intents) to launch apps, control settings, and speak confirmation 'हाँ, यह कर दिया है'.",
+      "acceptanceCriteria": [
+        "Direct Android intent dispatch for YouTube, Spotify, WhatsApp, Camera, Settings, and more",
+        "AndroidBridge exposed to WebView for seamless native control without popup blocker issues",
+        "Automatic spoken confirmation 'हाँ, यह कर दिया है' upon command completion",
+        "Environment-aware execution for Termux/Node and browser fallback"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-11",
+      "title": "Gemini-Style Floating Overlay & Pop-up Window",
+      "description": "Implement sleek, Gemini-style floating overlay/pop-up window that appears gracefully on screen whenever an app or media action is triggered.",
+      "acceptanceCriteria": [
+        "OverlayWindow component with iridescent glowing border and backdrop blur",
+        "Displays app/action title, status badge, spoken feedback caption, and dismiss button",
+        "Smooth entrance/exit spring animations",
+        "Seamless integration with chat stream and action dispatch"
+      ],
+      "passes": true,
+      "status": "completed"
+    },
+    {
+      "id": "TASK-12",
+      "title": "Backend & CI/CD Pipeline Preservation & Code Review",
+      "description": "Ensure build passes with zero errors, CI/CD pipeline remains intact, and CodeRabbit reports 0 syntax errors and 0 vulnerabilities.",
+      "acceptanceCriteria": [
+        "Build compiles with 0 errors via npm run build",
+        "Android app compiles cleanly via gradlew",
+        "CodeRabbit automated review reports 0 syntax errors and 0 critical issues"
+      ],
+      "passes": true,
+      "status": "completed"
     }
   ]
 }

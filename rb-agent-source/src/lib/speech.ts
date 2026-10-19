@@ -74,16 +74,58 @@ class SpeechEngine {
   private onEndCb: (() => void) | null = null;
   private isIntentionalPause = false;
   private timer: number | null = null;
+  private keepAliveInterval: number | null = null;
   private lastBoundaryTime = 0;
+  private voices: SpeechSynthesisVoice[] = [];
 
   constructor() {
-    // Ensure clean state if tab is restored
     if (typeof window !== "undefined") {
+      this.initVoices();
       window.addEventListener("beforeunload", () => {
         if (this.state.speaking && this.state.activeId) {
           persistBookmark(this.state.activeId, this.offset);
         }
       });
+      // Start keep-alive worker to counter Chromium 15s freeze bug
+      this.keepAliveInterval = window.setInterval(() => {
+        if (this.state.speaking && !this.state.paused && window.speechSynthesis?.speaking) {
+          try {
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          } catch {
+      // Non-fatal
+    }
+        }
+      }, 10000);
+    }
+  }
+
+  private initVoices() {
+    if (!this.supported) return;
+    try {
+      this.voices = window.speechSynthesis.getVoices();
+      if (typeof window.speechSynthesis.addEventListener === "function") {
+        window.speechSynthesis.addEventListener("voiceschanged", () => {
+          this.voices = window.speechSynthesis.getVoices();
+        });
+      } else {
+        window.speechSynthesis.onvoiceschanged = () => {
+          this.voices = window.speechSynthesis.getVoices();
+        };
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  private unstickQueue() {
+    if (!this.supported) return;
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    } catch {
+      // Non-fatal
     }
   }
 
@@ -150,7 +192,7 @@ class SpeechEngine {
   }
 
   private pickVoice(profile: VoiceProfile) {
-    const voices = window.speechSynthesis.getVoices();
+    const voices = this.voices.length ? this.voices : (this.supported ? window.speechSynthesis.getVoices() : []);
     if (!voices.length) return null;
     const byHint = voices.find((v) =>
       profile.match.some((hint) => v.name.toLowerCase().includes(hint.toLowerCase())),
@@ -165,6 +207,8 @@ class SpeechEngine {
   /** Speak from a given character offset in the text. */
   private run(from: number) {
     if (!this.supported) return;
+    this.unstickQueue();
+
     const safeFrom = alignToWordBoundary(this.fullText, Math.max(0, from));
     this.offset = safeFrom;
 
@@ -179,14 +223,17 @@ class SpeechEngine {
 
     this.isIntentionalPause = false;
     const utter = new SpeechSynthesisUtterance(slice);
-    utter.lang = profile.lang;
-    utter.pitch = profile.pitch;
-    utter.rate = profile.rate;
+    utter.lang = profile.lang || "hi-IN";
+    utter.pitch = profile.pitch ?? 1.0;
+    utter.rate = profile.rate ?? 1.0;
+
     const voice = this.pickVoice(profile);
-    if (voice) utter.voice = voice;
+    if (voice) {
+      utter.voice = voice;
+    }
 
     utter.onboundary = (event) => {
-      if (this.isIntentionalPause) return;
+      if (this.isIntentionalPause || this.state.paused) return;
       this.lastBoundaryTime = Date.now();
       const rawIndex = safeFrom + (event.charIndex ?? 0);
       this.offset = Math.min(this.fullText.length, rawIndex);
@@ -225,7 +272,12 @@ class SpeechEngine {
     utter.onerror = (err) => {
       this.clearTimer();
       // Chrome/Android triggers error 'canceled' or 'interrupted' when paused
-      if (this.isIntentionalPause || this.state.paused || err.error === "canceled" || err.error === "interrupted") {
+      if (
+        this.isIntentionalPause ||
+        this.state.paused ||
+        err.error === "canceled" ||
+        err.error === "interrupted"
+      ) {
         return;
       }
       console.warn("Speech synthesis error:", err.error);
@@ -234,7 +286,14 @@ class SpeechEngine {
 
     this.utterance = utter;
     this.startFallbackTimer(profile, safeFrom);
-    window.speechSynthesis.speak(utter);
+
+    try {
+      window.speechSynthesis.speak(utter);
+      this.unstickQueue();
+    } catch (e) {
+      console.warn("speechSynthesis.speak error:", e);
+    }
+
     this.emit({
       speaking: true,
       paused: false,
@@ -248,7 +307,16 @@ class SpeechEngine {
 
     this.isIntentionalPause = false;
     this.clearTimer();
-    window.speechSynthesis.cancel();
+
+    // Cancel active playback cleanly before starting new
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+      // Non-fatal
+    }
+    }
+    this.unstickQueue();
 
     this.voiceId = voiceId;
     this.fullText = text;
@@ -265,9 +333,13 @@ class SpeechEngine {
       charOffset: from,
       totalChars: text.length,
       paused: false,
+      speaking: true,
     });
 
-    this.run(from);
+    // Schedule run with 25ms delay to prevent Chrome's async cancel/speak collision
+    setTimeout(() => {
+      this.run(from);
+    }, 25);
   }
 
   pause() {
@@ -299,6 +371,7 @@ class SpeechEngine {
     if (!this.fullText && this.state.activeId) {
       return;
     }
+    this.unstickQueue();
     this.isIntentionalPause = false;
     this.emit({ paused: false, speaking: true });
     this.run(this.offset);
@@ -329,13 +402,49 @@ class SpeechEngine {
     if (this.state.speaking && !this.state.paused) {
       this.clearTimer();
       this.isIntentionalPause = true;
-      window.speechSynthesis.cancel();
-      this.run(aligned);
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+      // Non-fatal
+    }
+      setTimeout(() => this.run(aligned), 25);
     } else {
       this.emit({
         charOffset: aligned,
         spoken: this.fullText.slice(0, aligned),
       });
+    }
+  }
+
+  /**
+   * Spoken voice feedback confirmation (e.g., "हाँ, यह कर दिया है").
+   * Automatically invokes native Android bridge if available, or Web Speech API.
+   */
+  speakConfirmation(text = "हाँ, यह कर दिया है") {
+    // Priority 1: Native Android Bridge
+    try {
+      const bridge = typeof window !== "undefined" ? (window as any).AndroidBridge : null;
+      if (bridge && typeof bridge.speakConfirmation === "function") {
+        bridge.speakConfirmation(text);
+        return;
+      }
+    } catch {
+      // Non-fatal
+    }
+
+    // Priority 2: Web Speech Synthesis
+    if (!this.supported) return;
+    try {
+      this.unstickQueue();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "hi-IN";
+      utter.rate = 1.0;
+      utter.pitch = 1.0;
+      const hindiVoice = this.voices.find((v) => v.lang.startsWith("hi"));
+      if (hindiVoice) utter.voice = hindiVoice;
+      window.speechSynthesis.speak(utter);
+    } catch {
+      // Non-fatal
     }
   }
 
@@ -352,7 +461,9 @@ class SpeechEngine {
 
     try {
       window.speechSynthesis.cancel();
-    } catch {}
+    } catch {
+      // Non-fatal
+    }
 
     this.offset = 0;
     this.fullText = "";

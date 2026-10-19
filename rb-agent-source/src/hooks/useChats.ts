@@ -33,14 +33,18 @@ export function useChats() {
             .order("updated_at", { ascending: false });
           if (!error && data) return data as Chat[];
         }
-      } catch {}
+      } catch {
+        // Non-fatal fallback
+      }
 
       if (typeof window !== "undefined") {
         const local = localStorage.getItem("rb_local_chats");
         if (local) {
           try {
             return JSON.parse(local) as Chat[];
-          } catch {}
+          } catch {
+        // Non-fatal fallback
+      }
         }
       }
       return [];
@@ -63,14 +67,18 @@ export function useMessages(chatId: string | undefined) {
             .order("created_at", { ascending: true });
           if (!error && data) return data as ChatMessage[];
         }
-      } catch {}
+      } catch {
+        // Non-fatal fallback
+      }
 
       if (typeof window !== "undefined" && chatId) {
         const local = localStorage.getItem(`rb_local_msgs_${chatId}`);
         if (local) {
           try {
             return JSON.parse(local) as ChatMessage[];
-          } catch {}
+          } catch {
+        // Non-fatal fallback
+      }
         }
       }
       return [];
@@ -94,7 +102,9 @@ export async function createChatWithMessage(text: string, agent: string) {
         if (!msgError) return chat.id as string;
       }
     }
-  } catch {}
+  } catch {
+    // Non-fatal fallback
+  }
 
   const chatId = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -135,7 +145,9 @@ export async function addMessage(chatId: string, role: "user" | "assistant", con
         return data as ChatMessage;
       }
     }
-  } catch {}
+  } catch {
+    // Non-fatal fallback
+  }
 
   const now = new Date().toISOString();
   const msg: ChatMessage = {
@@ -166,7 +178,9 @@ export function useDeleteChat() {
         if (auth?.user) {
           await supabase.from("chats").delete().eq("id", chatId);
         }
-      } catch {}
+      } catch {
+        // Non-fatal fallback
+      }
 
       if (typeof window !== "undefined") {
         const existingChats: Chat[] = JSON.parse(localStorage.getItem("rb_local_chats") || "[]");
@@ -205,7 +219,9 @@ export async function streamReply(opts: {
     if (data.session?.access_token) {
       token = data.session.access_token;
     }
-  } catch {}
+  } catch {
+    // Non-fatal fallback
+  }
 
   const res = await fetch("/api/chat", {
     method: "POST",
@@ -264,6 +280,7 @@ export async function streamReply(opts: {
     full += decoder.decode(value, { stream: true });
     opts.onDelta(full);
   }
+  const spokenRaw = res.headers.get("X-Spoken-Confirmation");
   return {
     text: full,
     memorySaved: res.headers.get("X-Memory-Saved") === "1",
@@ -272,8 +289,13 @@ export async function streamReply(opts: {
     failover: res.headers.get("X-Failover-Active") === "1",
     intentAction: res.headers.get("X-Intent-Action") === "1",
     intentMode: (res.headers.get("X-Intent-Mode") || "native") as "native" | "web",
+    intentType: (res.headers.get("X-Intent-Type") || "custom") as any,
+    intentApp: res.headers.get("X-Intent-App") || "App",
+    intentQuery: res.headers.get("X-Intent-Query") || "",
+    intentActionText: res.headers.get("X-Intent-Action-Text") || "",
     intentUrl: res.headers.get("X-Intent-Url") || null,
     intentFallback: res.headers.get("X-Intent-Fallback") || null,
+    spokenConfirmation: spokenRaw ? decodeURIComponent(spokenRaw) : "हाँ, यह कर दिया है",
     mediaCommand: res.headers.get("X-Media-Command") || null,
   };
 }
